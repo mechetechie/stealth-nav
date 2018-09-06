@@ -2,7 +2,7 @@
 #include <vector>
 #include <map>
 #include <list>
-#include <algorithm>
+#include <cmath>
 
 class Node {
 public:
@@ -75,13 +75,23 @@ public:
     std::map<Node, std::map<Node,int>> makeGridGraph() {
         std::map< Node, std::map<Node,int> > neighbors;
         
-        // Randomly set locations of the monsters - monsters can move so actively change weights of the nodes near it
-        int x_rand = rand() % (rows - 1);
-        int y_rand = rand() % (cols - 1);
+        int monstercount = num_monsters;
+        while (monstercount != 2) {
+            srand(time(NULL));
         
-        while (num_monsters != 0) {
-            monsterLocs.push_back(Node(x_rand, y_rand));
-            num_monsters--;
+            // Randomly set locations of the monsters - monsters can move so actively change weights of the nodes near it
+            /*int x_rand = rand() % (rows - 1);
+            int y_rand = rand() % (cols - 1);
+            
+            if ( !isMonster(Node(x_rand, y_rand)) ) {
+                monsterLocs.push_back(Node(x_rand, y_rand));
+                std::cout << "monster loc: " << Node(x_rand, y_rand);
+                num_monsters--;
+            }*/
+            monsterLocs.push_back(Node(4,8));
+            monsterLocs.push_back(Node(6,4));
+            monsterLocs.push_back(Node(2,4));
+            monstercount--;
         }
         
         // Add Nodes to nodelist and define the neighbors of each node
@@ -115,7 +125,18 @@ public:
                 for (std::vector<Node>::iterator it = currNeighs.begin(); it != currNeighs.end(); ++it) {
                     Node n = *it;
                     std::pair <std::map<Node,int>::iterator,bool> ptr;
-                    ptr = neighWeights.insert(std::pair<Node,int>(n,10));
+                    ptr = neighWeights.insert(std::pair<Node,int>(n,0));
+                    
+                    /*Node n = *it;
+                    
+                    if ( isMonster(n) ) {
+                        std::pair <std::map<Node,int>::iterator,bool> ptr;
+                        ptr = neighWeights.insert(std::pair<Node,int>(n,10));
+                    } else {
+                        std::pair <std::map<Node,int>::iterator,bool> ptr;
+                        ptr = neighWeights.insert(std::pair<Node,int>(n,10));
+                    }*/
+                    
                     
                     /*DEBUG checking if the key was already present or newly inserted
                     if(ptr.second)
@@ -141,8 +162,29 @@ public:
         }
     };
     
+    bool isMonster(Node n) {
+        // Check if start or end are on monster location
+        for (std::vector<Node>::iterator it = monsterLocs.begin(); it != monsterLocs.end(); it++ ){
+            if (n == *it) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
     
     std::vector<Node> shortestPath(Node start, Node end, std::map<Node, std::map<Node,int>> neighbors) {
+        
+        //Check if start or end nodes have a monster
+        if ( isMonster(start) ) {
+            std::cout << "START NODE ALREADY HAS A MONSTER ON IT" << std::endl;
+            return {};
+        }
+        if ( isMonster(end) ) {
+            std::cout << "END NODE ALREADY HAS A MONSTER ON IT" << std::endl;
+            return {};
+        }
+        
         std::list <Node> frontier;
         frontier.push_front(start);
 
@@ -167,7 +209,35 @@ public:
 
                 if ( (cost_to_node.find(next) == cost_to_node.end()) || (new_cost < cost_to_node[next]) ) {
                     cost_to_node[next] = new_cost;
-                    double priority = new_cost + (abs(next.x - end.x) + abs(next.y - end.y));
+                    
+                    double h_monstprox = 0.0;
+                    double curr_min = std::sqrt( std::pow((rows -1),2) + std::pow((cols -1),2) );
+                    // HEURISTIC
+                    for (std::vector<Node>::iterator it2 = monsterLocs.begin(); it2 != monsterLocs.end(); it2++) {
+                        Node monster = (*it2);
+                        /* MANHATTAN DISTANCE
+                        h_monstprox = h_monstprox + (abs(next.x - monster.x) + abs(next.y - monster.y));
+                         */
+                        /* EUCLIDEAN DISTANCE
+                        h_monstprox = h_monstprox + std::sqrt( std::pow((next.x - monster.x),2) + std::pow((next.y - monster.y),2) );
+                         */
+                        // Max of monster distance
+                        double current_mons_dist = std::sqrt( std::pow((next.x - monster.x),2) + std::pow((next.y - monster.y),2) );
+                        if (current_mons_dist < curr_min) {
+                            curr_min = current_mons_dist;
+                        }
+                    }
+                    std::cout << "MIN DISTANCE FROM MONSTER: " << curr_min << std::endl;
+                    h_monstprox = curr_min;
+                    std::cout << next << "::" << "monstprox: " << h_monstprox << std::endl;
+                    //double h_endprox = (abs(next.x - end.x) + abs(next.y - end.y));
+                    double h_endprox = std::sqrt( std::pow((next.x - end.x),2) + std::pow((next.y - end.y),2) );
+                    std::cout << next << "::" << "endprox: " << h_endprox << std::endl;
+                    double heuristic = h_endprox - h_monstprox;
+                    double priority = new_cost + heuristic;
+                    
+                    std::cout << next << "::" << "priority: " << priority << std::endl;
+                    
                     // DEBUG std::cout<<"PRIORITY: " << priority << std::endl;
                     next.priority = priority;
                     frontier.push_back(next);
@@ -207,7 +277,7 @@ public:
 
 int main() {
     
-    Grid grid1(10,10,1);
+    Grid grid1(10,10,3);
     std::map<Node, std::map<Node,int>> neighbors = grid1.makeGridGraph();
     
     /* DEBUG - Check neighbors of particular nodes as outputed by makeGridGraph 
@@ -215,7 +285,7 @@ int main() {
         std::cout << "MAIN TEST: " << it -> first << it -> second << std::endl;
     }*/
 
-    std::vector<Node> spath = grid1.shortestPath(Node(0,1), Node(8,7), neighbors);
+    std::vector<Node> spath = grid1.shortestPath(Node(1,2), Node(8,9), neighbors);
 
     std::cout << "HERE IS YOUR PATH MY GUY: " << std::endl;
 
